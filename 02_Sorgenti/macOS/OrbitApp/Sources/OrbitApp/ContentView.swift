@@ -51,6 +51,17 @@ struct ContentView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .navigationTitle(detailTitle)
         .toolbar {
+            if case .conversation(let id) = selection,
+               let conversation = conversations.first(where: { $0.id == id }) {
+                ToolbarItem(placement: .principal) {
+                    Text(conversation.title)
+                        .font(.system(size: 17, weight: .regular))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: 420)
+                        .help(conversation.title)
+                }
+            }
             ToolbarItem(placement: .navigation) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { sidebarVisible.toggle() }

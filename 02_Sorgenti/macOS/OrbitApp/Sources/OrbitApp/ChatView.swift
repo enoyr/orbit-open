@@ -63,28 +63,20 @@ struct ChatView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+        .toolbar {
+            if previewFile != nil && !isFilePanelOpen {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { isFilePanelOpen = true } label: {
+                        Image(systemName: "sidebar.right")
+                    }
+                    .help("Mostra il file")
+                }
+            }
+        }
     }
 
     private var chatContent: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text(conversation.title)
-                    .font(.system(size: 23, weight: .light))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer()
-                if previewFile != nil && !isFilePanelOpen {
-                    Button { isFilePanelOpen = true } label: {
-                        Image(systemName: "sidebar.right")
-                    }
-                    .buttonStyle(.plain)
-                    .help("Mostra il file")
-                }
-            }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 16)
-            Divider()
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     if messages.isEmpty && pendingUserText == nil {
