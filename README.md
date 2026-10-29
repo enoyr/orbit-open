@@ -5,7 +5,8 @@ Orbit Open è un assistente personale per macOS in fase iniziale di sviluppo. Co
 ## Stato attuale
 
 - Chat e cronologia locali, con indicatore di preparazione, risposta progressiva, stato di scrittura e selezione della connessione.
-- Titolo ricavato dalla prima frase del primo messaggio, con rinomina ed eliminazione dal pulsante che compare passando sulla chat nella barra laterale. Markdown con codice e tabelle, icona per copiare sotto ogni messaggio, copia dei blocchi di codice e grafici a barre da blocchi `chart` JSON. La modalità di accesso scelta per ogni chat è conservata in PostgreSQL; gli strumenti per file e browser non sono ancora collegati.
+- Titolo ricavato dalla prima frase del primo messaggio, con rinomina ed eliminazione dal pulsante che compare passando sulla chat nella barra laterale. Markdown con codice e tabelle, icona per copiare sotto ogni messaggio, copia dei blocchi di codice e grafici a barre da blocchi `chart` JSON. La modalità di accesso scelta per ogni chat è conservata in PostgreSQL.
+- Primo percorso per i file: scegli un PDF testuale o un file di testo/codice dal Mac, leggilo nel pannello ridimensionabile accanto alla chat e invialo al modello per un riassunto o una domanda. Il nome del file nel messaggio riapre l'anteprima anche tornando su una chat precedente. In “Richiedi approvazione” Orbit chiede conferma prima di ogni invio che includa il contenuto dei file della chat. La ricerca autonoma, la scrittura di file e il browser sono i passi successivi.
 - Connessioni tramite chiave API OpenAI, chiave API Claude, endpoint personalizzato o Ollama locale.
 - Chiavi API nel Portachiavi macOS; token locale per le richieste fra app e Core.
 - Dati e credenziali separati da Orbit Commercial: database `orbit_open`, porta `8766`, token in `Orbit Open` e voci dedicate nel Portachiavi.

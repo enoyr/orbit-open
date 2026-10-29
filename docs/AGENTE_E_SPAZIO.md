@@ -16,11 +16,11 @@ Orbit deve poter lavorare con i contenuti del computer dalla conversazione: trov
 - La chat rimane visibile a sinistra. Un pannello a destra si apre su richiesta dell'utente o quando un'attività richiede un'anteprima, con divisore trascinabile, pulsanti per chiudere e riaprire e larghezze minime per entrambi i lati.
 - Lo stesso contenitore ospita schede di browser, documenti, file e attività. Cambia il contenuto della scheda, non la struttura della finestra. Se lo spazio è stretto, il pannello diventa una vista sovrapposta o una scheda dedicata.
 - La conversazione indica quale elemento è aperto nel pannello. L'utente può scegliere un altro elemento senza perdere il punto della chat; la dimensione del pannello viene ricordata.
-- La prima versione utile è l'anteprima di un file letto da Orbit. Seguono navigazione browser e modifica dei documenti tramite strumenti appropriati.
+- La prima versione mostra nel pannello un file scelto dall'utente e conserva un'anteprima riapribile dalla chat. Seguono ricerca autonoma dei file, navigazione browser e modifica dei documenti tramite strumenti appropriati.
 
 ## Ordine di realizzazione
 
 1. Contratto degli strumenti, controllo delle approvazioni e registro delle azioni.
-2. Lettura e ricerca dei file locali, con anteprima nel pannello.
+2. Lettura dei file scelti dall'utente con anteprima nel pannello (realizzata); ricerca autonoma nelle cartelle da aggiungere.
 3. Scrittura e organizzazione dei file, con esito visibile e recupero quando possibile.
 4. Browser nello stesso pannello; poi integrazioni con altre app.

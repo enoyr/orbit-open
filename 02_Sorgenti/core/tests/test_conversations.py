@@ -86,6 +86,42 @@ def test_stream_saves_both_messages(monkeypatch):
                 conn.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
 
 
+def test_selected_file_is_available_to_model_and_follow_up(monkeypatch):
+    histories = []
+    def reply(history, endpoint):
+        histories.append(history)
+        return iter(["Riassunto"])
+    monkeypatch.setattr("orbit_core.main.stream_reply", reply)
+    client = authenticated_client()
+    created = client.post("/v1/conversations", json={"title": "File"})
+    conversation_id = created.json()["id"]
+    try:
+        path = f"/v1/conversations/{conversation_id}/messages/stream"
+        assert client.post(path, json={"content": "Riassumi", "file_name": "../../secret"}).status_code == 422
+        assert client.post(path, json={"content": "Riassumi", "file_name": "note.txt",
+                                       "file_content": "Contenuto di prova"}).status_code == 403
+        first = client.post(path, json={"content": "Riassumi", "file_name": "note.txt",
+                                        "file_content": "Contenuto di prova", "file_approved": True})
+        assert first.status_code == 200
+        assert "Contenuto di prova" in histories[0][-1]["content"]
+        messages = client.get(f"/v1/conversations/{conversation_id}/messages").json()
+        assert messages[0]["file_name"] == "note.txt"
+        assert "file_content" not in messages[0]
+        preview = client.get(f"/v1/conversations/{conversation_id}/messages/{messages[0]['id']}/file")
+        assert preview.status_code == 200
+        assert preview.json() == {"name": "note.txt", "content": "Contenuto di prova"}
+        assert client.get(f"/v1/conversations/{uuid4()}/messages/{messages[0]['id']}/file").status_code == 404
+        assert client.post(path, json={"content": "E poi?"}).status_code == 403
+        client.post(path, json={"content": "E poi?", "file_approved": True})
+        assert any("Contenuto di prova" in item["content"] for item in histories[1])
+        assert client.patch(f"/v1/conversations/{conversation_id}/access-mode",
+                            json={"access_mode": "full_access"}).status_code == 200
+        assert client.post(path, json={"content": "Ancora?"}).status_code == 200
+    finally:
+        with psycopg.connect(os.environ["ORBIT_DATABASE_URL"]) as conn:
+            conn.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
+
+
 def test_rename_conversation_persists_and_rejects_blank_title():
     client = authenticated_client()
     created = client.post("/v1/conversations", json={"title": "Nuova chat"})

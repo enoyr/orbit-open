@@ -1,6 +1,6 @@
 # Accesso con ChatGPT in Orbit Open
 
-Stato: flusso open source implementato. Il consenso, il catalogo modelli e una risposta reale del modello sono stati verificati su un'installazione locale. 23 test Core superati e build Swift release riuscita.
+Stato: flusso open source implementato. Il consenso, il catalogo modelli e una risposta reale del modello sono stati verificati su un'installazione locale. 24 test Core superati e build Swift release riuscita.
 
 ## Connessioni distinte
 

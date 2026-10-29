@@ -126,14 +126,21 @@ struct ChatMessage: Decodable, Identifiable, Hashable {
     let conversationID: UUID
     let role: String
     let content: String
+    let fileName: String?
     let status: String
     let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id, role, content, status
+        case fileName = "file_name"
         case conversationID = "conversation_id"
         case createdAt = "created_at"
     }
+}
+
+struct StoredFilePreview: Decodable {
+    let name: String
+    let content: String
 }
 
 struct Capabilities: Decodable {
@@ -143,6 +150,16 @@ struct Capabilities: Decodable {
 
 struct MessageRequest: Encodable {
     let content: String
+    let fileName: String?
+    let fileContent: String?
+    let fileApproved: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case content
+        case fileName = "file_name"
+        case fileContent = "file_content"
+        case fileApproved = "file_approved"
+    }
 }
 
 enum ChatEvent: Sendable {
@@ -291,6 +308,13 @@ struct OrbitClient {
         return try decoder.decode([ChatMessage].self, from: data)
     }
 
+    func filePreview(in conversationID: UUID, messageID: UUID) async throws -> StoredFilePreview {
+        let url = baseURL.appending(path: "v1/conversations/\(conversationID)/messages/\(messageID)/file")
+        let (data, response) = try await URLSession.shared.data(for: try authorizedRequest(url: url))
+        try validate(response)
+        return try JSONDecoder().decode(StoredFilePreview.self, from: data)
+    }
+
     func openAIKeyStatus() async throws -> SecretStatus {
         try await keyStatus(for: "openai")
     }
@@ -362,7 +386,9 @@ struct OrbitClient {
         return try JSONDecoder().decode(SecretStatus.self, from: data)
     }
 
-    func sendMessage(_ content: String, in conversationID: UUID) -> AsyncThrowingStream<ChatEvent, Error> {
+    func sendMessage(_ content: String, in conversationID: UUID,
+                     fileName: String? = nil, fileContent: String? = nil,
+                     fileApproved: Bool = false) -> AsyncThrowingStream<ChatEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -370,7 +396,9 @@ struct OrbitClient {
                     var request = try authorizedRequest(url: url)
                     request.httpMethod = "POST"
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    request.httpBody = try JSONEncoder().encode(MessageRequest(content: content))
+                    request.httpBody = try JSONEncoder().encode(MessageRequest(
+                        content: content, fileName: fileName, fileContent: fileContent,
+                        fileApproved: fileApproved))
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)
                     try validate(response)
                     var eventName = ""

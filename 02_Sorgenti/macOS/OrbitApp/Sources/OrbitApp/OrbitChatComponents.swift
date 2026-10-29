@@ -4,18 +4,37 @@ struct OrbitMessageRow: View {
     let role: String
     let content: String
     var agentName = "Orbit"
+    var fileName: String? = nil
+    var onOpenFile: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top) {
             if role == "user" { Spacer(minLength: 70) }
             VStack(alignment: role == "user" ? .trailing : .leading, spacing: 5) {
-                OrbitMarkdownMessage(content: content)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 13)
-                    .background(
-                        role == "user" ? OrbitPalette.blue.opacity(0.12) : Color.secondary.opacity(0.075),
-                        in: RoundedRectangle(cornerRadius: 18)
-                    )
+                VStack(alignment: .leading, spacing: 8) {
+                    if let fileName {
+                        if let onOpenFile {
+                            Button(action: onOpenFile) {
+                                Label(fileName, systemImage: "doc.text")
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .help("Apri il file nel pannello")
+                        } else {
+                            Label(fileName, systemImage: "doc.text")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    OrbitMarkdownMessage(content: content)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 13)
+                .background(
+                    role == "user" ? OrbitPalette.blue.opacity(0.12) : Color.secondary.opacity(0.075),
+                    in: RoundedRectangle(cornerRadius: 18)
+                )
                 OrbitCopyButton(text: content, label: "Copia messaggio", iconOnly: true)
                     .frame(width: 25, height: 22)
                     .padding(.horizontal, 8)
@@ -54,11 +73,26 @@ struct OrbitComposer: View {
     let onSelectEndpoint: (UUID) -> Void
     let onSelectAccessMode: (String) -> Void
     let onSend: () -> Void
+    let attachedFileName: String?
+    let onAddFile: () -> Void
+    let onRemoveFile: () -> Void
     @State private var pendingFeature: String?
     @State private var inputHeight: CGFloat = 52
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            if let attachedFileName {
+                HStack(spacing: 8) {
+                    Label(attachedFileName, systemImage: "doc.text")
+                        .lineLimit(1)
+                    Button(action: onRemoveFile) {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .accessibilityLabel("Rimuovi file allegato")
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            }
             ZStack(alignment: .topLeading) {
                 OrbitComposerInput(text: $text, height: $inputHeight,
                                    focusID: focusID, onSend: onSend)
@@ -73,7 +107,7 @@ struct OrbitComposer: View {
             .frame(maxWidth: .infinity, minHeight: 52, alignment: .topLeading)
             .accessibilityLabel("Messaggio")
             HStack(spacing: 16) {
-                Button { pendingFeature = "Allegati" } label: {
+                Button(action: onAddFile) {
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .regular))
                         .frame(width: 28, height: 28)

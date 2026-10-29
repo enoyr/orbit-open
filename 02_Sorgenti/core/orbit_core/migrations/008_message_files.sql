@@ -1,0 +1,2 @@
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_content TEXT;
