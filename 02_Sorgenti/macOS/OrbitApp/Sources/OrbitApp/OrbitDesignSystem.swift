@@ -155,6 +155,69 @@ struct OrbitSidebarRow: View {
     }
 }
 
+struct OrbitConversationSidebarRow: View {
+    let title: String
+    let selected: Bool
+    let alwaysShowActions: Bool
+    let onSelect: () -> Void
+    let onRename: () -> Void
+    let onDelete: () -> Void
+    @State private var isHovered = false
+
+    private var showsActions: Bool { isHovered || alwaysShowActions }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Button(action: onSelect) {
+                HStack(spacing: 10) {
+                    Image(systemName: "bubble.left")
+                        .frame(width: 18)
+                    Text(title)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.system(size: 14, weight: selected ? .semibold : .medium))
+                .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.72))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(title)
+
+            Menu {
+                Button("Rinomina", systemImage: "pencil", action: onRename)
+                Button("Elimina chat", systemImage: "trash", role: .destructive, action: onDelete)
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 26, height: 26)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .frame(width: 26, height: 26)
+            .opacity(showsActions ? 1 : 0)
+            .allowsHitTesting(showsActions)
+            .accessibilityLabel("Modifica \(title)")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(Color.primary.opacity(selected ? 0.07 : isHovered ? 0.04 : 0.001),
+                    in: RoundedRectangle(cornerRadius: 11))
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.12)) { isHovered = hovering }
+        }
+        .contextMenu {
+            Button("Rinomina", systemImage: "pencil", action: onRename)
+            Button("Elimina chat", systemImage: "trash", role: .destructive, action: onDelete)
+        }
+    }
+}
+
 struct OrbitActionButton: View {
     let title: String
     let symbol: String

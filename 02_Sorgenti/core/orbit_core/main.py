@@ -1,4 +1,5 @@
 import json
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Literal
@@ -437,6 +438,20 @@ def _event(name: str, payload: dict) -> str:
     return f"event: {name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+def title_from_first_phrase(content: str) -> str:
+    line = next((part.strip() for part in content.splitlines() if part.strip()), "")
+    line = re.sub(r"^(?:[#>*-]\s*)+", "", line)
+    line = re.sub(r"\s+", " ", line).strip()
+    if not line:
+        return "Nuova chat"
+    boundary = re.search(r"[.!?](?=\s|$)", line)
+    phrase = line[:boundary.end()] if boundary else line
+    if len(phrase) <= 72:
+        return phrase
+    shorter = phrase[:69].rsplit(" ", 1)[0].rstrip(" ,;:-")
+    return (shorter or phrase[:69]).rstrip() + "…"
+
+
 @app.post("/v1/conversations/{conversation_id}/messages/stream")
 def send_message(conversation_id: UUID, payload: MessageCreate) -> StreamingResponse:
     content = payload.content.strip()
@@ -445,20 +460,29 @@ def send_message(conversation_id: UUID, payload: MessageCreate) -> StreamingResp
     try:
         with connection() as conn:
             endpoint = conn.execute(
-                "SELECT e.id, e.provider, e.model_name, e.base_url, c.agent_instructions "
+                "SELECT e.id, e.provider, e.model_name, e.base_url, c.agent_instructions, c.title "
                 "FROM conversations c "
                 "JOIN model_endpoints e ON e.id = c.endpoint_id "
-                "WHERE c.id = %s AND e.enabled", (conversation_id,),
+                "WHERE c.id = %s AND e.enabled FOR UPDATE OF c", (conversation_id,),
             ).fetchone()
             if not endpoint:
                 raise HTTPException(status_code=404, detail="Chat non trovata")
             validate_endpoint(endpoint)
+            first_message = not conn.execute(
+                "SELECT 1 FROM messages WHERE conversation_id = %s AND role = 'user' LIMIT 1",
+                (conversation_id,),
+            ).fetchone()
+            auto_title = title_from_first_phrase(content) if first_message and endpoint["title"] == "Nuova chat" else None
             user_id = uuid4()
             conn.execute(
                 "INSERT INTO messages (id, conversation_id, role, content) VALUES (%s, %s, 'user', %s)",
                 (user_id, conversation_id, content),
             )
-            conn.execute("UPDATE conversations SET updated_at = now() WHERE id = %s", (conversation_id,))
+            if auto_title:
+                conn.execute("UPDATE conversations SET title = %s, updated_at = now() WHERE id = %s",
+                             (auto_title, conversation_id))
+            else:
+                conn.execute("UPDATE conversations SET updated_at = now() WHERE id = %s", (conversation_id,))
             history = conn.execute(
                 "SELECT role, content FROM messages WHERE conversation_id = %s "
                 "AND status = 'complete' ORDER BY created_at, id",
@@ -480,7 +504,7 @@ def send_message(conversation_id: UUID, payload: MessageCreate) -> StreamingResp
 
     def generate():
         chunks: list[str] = []
-        yield _event("user.saved", {"id": str(user_id)})
+        yield _event("user.saved", {"id": str(user_id), "title": auto_title})
         try:
             for delta in stream_reply(history, endpoint):
                 chunks.append(delta)

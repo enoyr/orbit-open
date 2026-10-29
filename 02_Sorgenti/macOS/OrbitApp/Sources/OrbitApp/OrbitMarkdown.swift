@@ -137,6 +137,7 @@ private enum MessageParser {
 struct OrbitCopyButton: View {
     let text: String
     var label = "Copia"
+    var iconOnly = false
     @State private var copied = false
 
     var body: some View {
@@ -149,12 +150,19 @@ struct OrbitCopyButton: View {
                 copied = false
             }
         } label: {
-            Label(copied ? "Copiato" : label, systemImage: copied ? "checkmark" : "doc.on.doc")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+            Group {
+                if iconOnly {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                } else {
+                    Label(copied ? "Copiato" : label, systemImage: copied ? "checkmark" : "doc.on.doc")
+                }
+            }
+            .font(.system(size: 12))
+            .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
         .help(label)
+        .accessibilityLabel(copied ? "Copiato" : label)
     }
 }
 

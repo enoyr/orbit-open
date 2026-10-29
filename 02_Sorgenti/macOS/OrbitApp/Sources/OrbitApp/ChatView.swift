@@ -6,6 +6,7 @@ struct ChatView: View {
     let endpoints: [ModelEndpoint]
     let onSelectEndpoint: (UUID) -> Void
     let onSelectAccessMode: (String) -> Void
+    let onTitleUpdated: (String) -> Void
 
     @State private var messages: [ChatMessage] = []
     @State private var draft = ""
@@ -102,6 +103,7 @@ struct ChatView: View {
             do {
                 for try await event in client.sendMessage(content, in: conversation.id) {
                     switch event {
+                    case .title(let title): onTitleUpdated(title)
                     case .delta(let text): streamedText += text
                     case .completed: break
                     case .failed(let message): errorMessage = message

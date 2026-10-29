@@ -4,7 +4,7 @@ from uuid import uuid4
 import psycopg
 from fastapi.testclient import TestClient
 
-from orbit_core.main import app
+from orbit_core.main import app, title_from_first_phrase
 from orbit_core.auth import load_or_create_token
 
 
@@ -122,6 +122,47 @@ def test_access_mode_is_saved_for_each_conversation():
     finally:
         with psycopg.connect(os.environ["ORBIT_DATABASE_URL"]) as conn:
             conn.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
+
+
+def test_title_uses_first_phrase_and_stays_short():
+    assert title_from_first_phrase("  # Prima frase. Poi altro testo.\nSeconda riga") == "Prima frase."
+    assert title_from_first_phrase("Ciao! Come stai?") == "Ciao!"
+    assert len(title_from_first_phrase("parole " * 30)) <= 72
+
+
+def test_first_message_names_chat_without_overwriting_manual_title(monkeypatch):
+    monkeypatch.setattr("orbit_core.main.stream_reply", lambda history, endpoint: iter(["OK"]))
+    client = authenticated_client()
+    auto_id = None
+    manual_id = None
+    try:
+        auto = client.post("/v1/conversations", json={"title": "Nuova chat"})
+        assert auto.status_code == 201
+        auto_id = auto.json()["id"]
+        sent = client.post(f"/v1/conversations/{auto_id}/messages/stream",
+                           json={"content": "Organizza il viaggio. Poi scegli l'hotel."})
+        assert sent.status_code == 200
+        assert '"title": "Organizza il viaggio."' in sent.text
+        listed = client.get("/v1/conversations").json()
+        assert next(chat for chat in listed if chat["id"] == auto_id)["title"] == "Organizza il viaggio."
+        client.post(f"/v1/conversations/{auto_id}/messages/stream",
+                    json={"content": "Secondo messaggio"})
+        listed = client.get("/v1/conversations").json()
+        assert next(chat for chat in listed if chat["id"] == auto_id)["title"] == "Organizza il viaggio."
+
+        manual = client.post("/v1/conversations", json={"title": "Nuova chat"})
+        assert manual.status_code == 201
+        manual_id = manual.json()["id"]
+        client.patch(f"/v1/conversations/{manual_id}", json={"title": "Titolo mio"})
+        client.post(f"/v1/conversations/{manual_id}/messages/stream",
+                    json={"content": "Prima frase. Altro testo."})
+        listed = client.get("/v1/conversations").json()
+        assert next(chat for chat in listed if chat["id"] == manual_id)["title"] == "Titolo mio"
+    finally:
+        with psycopg.connect(os.environ["ORBIT_DATABASE_URL"]) as conn:
+            for conversation_id in (auto_id, manual_id):
+                if conversation_id:
+                    conn.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
 
 
 def test_endpoint_is_selected_per_conversation():

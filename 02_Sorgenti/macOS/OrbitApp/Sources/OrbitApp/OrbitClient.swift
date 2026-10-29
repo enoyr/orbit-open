@@ -2,7 +2,7 @@ import Foundation
 
 struct Conversation: Decodable, Identifiable, Hashable {
     let id: UUID
-    let title: String
+    var title: String
     let endpointID: UUID
     let agentName: String
     let accessMode: String
@@ -146,12 +146,14 @@ struct MessageRequest: Encodable {
 }
 
 enum ChatEvent: Sendable {
+    case title(String)
     case delta(String)
     case completed
     case failed(String)
 }
 
 private struct EventPayload: Decodable {
+    let title: String?
     let text: String?
     let message: String?
 }
@@ -380,6 +382,8 @@ struct OrbitClient {
                             let data = Data(line.dropFirst(6).utf8)
                             let payload = try JSONDecoder().decode(EventPayload.self, from: data)
                             switch eventName {
+                            case "user.saved":
+                                if let title = payload.title { continuation.yield(.title(title)) }
                             case "text.delta": continuation.yield(.delta(payload.text ?? ""))
                             case "response.completed": continuation.yield(.completed)
                             case "response.failed": continuation.yield(.failed(payload.message ?? "Risposta non disponibile"))

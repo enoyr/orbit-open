@@ -64,15 +64,6 @@ struct ContentView: View {
                     .help("Nuova chat")
                     .disabled(isLoading)
             }
-            if case .conversation(let id) = selection,
-               let conversation = conversations.first(where: { $0.id == id }) {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        conversationToDelete = conversation
-                    } label: { Image(systemName: "trash") }
-                    .help("Elimina chat")
-                }
-            }
         }
         .tint(Color.accentColor)
         .task { await loadData() }
@@ -124,28 +115,17 @@ struct ContentView: View {
                                 .padding(.bottom, 4)
                         }
                         ForEach(conversations) { conversation in
-                            HStack(spacing: 2) {
-                                sidebarRow(conversation.title, symbol: "bubble.left",
-                                    destination: .conversation(conversation.id))
-                                Menu {
-                                    Button("Rinomina", systemImage: "pencil") { beginRename(conversation) }
-                                    Button("Elimina chat", systemImage: "trash", role: .destructive) {
-                                        conversationToDelete = conversation
-                                    }
-                                } label: {
-                                    Image(systemName: "ellipsis")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .frame(width: 26, height: 26)
-                                }
-                                .menuStyle(.borderlessButton)
-                                .accessibilityLabel("Opzioni per \(conversation.title)")
-                            }
-                            .contextMenu {
-                                Button("Rinomina", systemImage: "pencil") { beginRename(conversation) }
-                                Button("Elimina chat", systemImage: "trash", role: .destructive) {
-                                    conversationToDelete = conversation
-                                }
-                            }
+                            OrbitConversationSidebarRow(
+                                title: conversation.title,
+                                selected: selection == .conversation(conversation.id),
+                                alwaysShowActions: isCompact,
+                                onSelect: {
+                                    selection = .conversation(conversation.id)
+                                    if isCompact { withAnimation { sidebarVisible = false } }
+                                },
+                                onRename: { beginRename(conversation) },
+                                onDelete: { conversationToDelete = conversation }
+                            )
                         }
                         Divider().padding(.vertical, 12)
                         sidebarRow("Impostazioni", symbol: "gearshape", destination: .settings)
@@ -193,7 +173,8 @@ struct ContentView: View {
                     client: client,
                     endpoints: endpoints,
                     onSelectEndpoint: { endpointID in selectEndpoint(endpointID, for: id) },
-                    onSelectAccessMode: { mode in selectAccessMode(mode, for: id) }
+                    onSelectAccessMode: { mode in selectAccessMode(mode, for: id) },
+                    onTitleUpdated: { title in updateTitle(title, for: id) }
                 )
             } else {
                 OrbitHomeView(onNewChat: createConversation)
@@ -252,6 +233,13 @@ struct ContentView: View {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+
+    private func updateTitle(_ title: String, for conversationID: UUID) {
+        guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { return }
+        var updated = conversations.remove(at: index)
+        updated.title = title
+        conversations.insert(updated, at: 0)
     }
 
     private func createConversation() {

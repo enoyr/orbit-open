@@ -8,22 +8,21 @@ struct OrbitMessageRow: View {
     var body: some View {
         HStack(alignment: .top) {
             if role == "user" { Spacer(minLength: 70) }
-            VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: role == "user" ? .trailing : .leading, spacing: 5) {
                 OrbitMarkdownMessage(content: content)
-                HStack {
-                    OrbitCopyButton(text: content, label: "Copia messaggio")
-                    Spacer(minLength: 0)
-                }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 13)
+                    .background(
+                        role == "user" ? OrbitPalette.blue.opacity(0.12) : Color.secondary.opacity(0.075),
+                        in: RoundedRectangle(cornerRadius: 18)
+                    )
+                OrbitCopyButton(text: content, label: "Copia messaggio", iconOnly: true)
+                    .frame(width: 25, height: 22)
+                    .padding(.horizontal, 8)
             }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 13)
-                .background(
-                    role == "user" ? OrbitPalette.blue.opacity(0.12) : Color.secondary.opacity(0.075),
-                    in: RoundedRectangle(cornerRadius: 18)
-                )
             if role != "user" { Spacer(minLength: 70) }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("\(role == "user" ? "Tu" : agentName): \(content)")
     }
 }
@@ -71,12 +70,18 @@ struct OrbitComposer: View {
                         onSelectAccessMode("full_access")
                     }
                 } label: {
-                    Label(accessMode == "full_access" ? "Accesso completo" : "Richiedi approvazione",
-                          systemImage: accessMode == "full_access" ? "bolt" : "hand.raised")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 5) {
+                        Label(accessMode == "full_access" ? "Accesso completo" : "Richiedi approvazione",
+                              systemImage: accessMode == "full_access" ? "bolt" : "hand.raised")
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .medium))
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
                 }
-                .menuStyle(.borderlessButton)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize(horizontal: true, vertical: false)
                 .help("Preferenza per le future azioni su file e applicazioni")
                 Spacer(minLength: 8)
                 modelMenu
