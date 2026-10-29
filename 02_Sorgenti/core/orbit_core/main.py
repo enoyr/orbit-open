@@ -7,12 +7,13 @@ from uuid import UUID, uuid4
 import psycopg
 import keyring
 from keyring.errors import KeyringError, PasswordDeleteError
-from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.responses import Response, StreamingResponse
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, SecretStr
 
 from .db import connection
 from .auth import load_or_create_token, require_token
+from . import chatgpt_oauth
 from .providers import (
     ProviderConfigurationError,
     stream_reply,
@@ -30,6 +31,67 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="Orbit Core", version="0.2.0", dependencies=[Depends(require_token)], lifespan=lifespan
 )
+
+callback_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+app.mount("/auth", callback_app)
+
+
+@callback_app.get("/callback", response_class=HTMLResponse)
+def chatgpt_callback(request: Request) -> HTMLResponse:
+    if request.url.hostname != "127.0.0.1" or not request.client or request.client.host != "127.0.0.1":
+        return HTMLResponse("Callback locale non valido", status_code=403)
+    params = request.query_params
+    if any(len(params.getlist(name)) != 1 for name in ("state",)) or any(
+        len(params.getlist(name)) > 1 for name in ("code", "client_id", "error")
+    ):
+        return HTMLResponse("Risposta di accesso non valida", status_code=400)
+    try:
+        chatgpt_oauth.finish_sign_in(
+            state=params["state"], code=params.get("code"),
+            client_id=params.get("client_id"), error=params.get("error"),
+        )
+    except (chatgpt_oauth.OAuthError, keyring.errors.KeyringError, KeyError):
+        return HTMLResponse(
+            "<html><body><h1>Accesso non completato</h1>"
+            "<p>Torna in Orbit Open e riprova.</p></body></html>", status_code=400,
+        )
+    return HTMLResponse(
+        "<html><body><h1>ChatGPT collegato a Orbit Open</h1>"
+        "<p>Puoi chiudere questa scheda e tornare all'app.</p></body></html>"
+    )
+
+
+@app.get("/v1/chatgpt/status")
+def chatgpt_status() -> dict:
+    try:
+        return chatgpt_oauth.account_status()
+    except (chatgpt_oauth.OAuthError, keyring.errors.KeyringError):
+        raise HTTPException(status_code=503, detail="Account ChatGPT non disponibile")
+
+
+@app.post("/v1/chatgpt/start")
+def chatgpt_start() -> dict[str, str]:
+    try:
+        return {"authorization_url": chatgpt_oauth.start_sign_in()}
+    except (chatgpt_oauth.OAuthError, keyring.errors.KeyringError):
+        raise HTTPException(status_code=503, detail="Impossibile avviare l'accesso ChatGPT")
+
+
+@app.delete("/v1/chatgpt/account")
+def chatgpt_disconnect() -> dict[str, bool]:
+    try:
+        remote_revoked = chatgpt_oauth.disconnect()
+    except keyring.errors.KeyringError:
+        raise HTTPException(status_code=503, detail="Impossibile scollegare ChatGPT")
+    return {"remote_revoked": remote_revoked}
+
+
+@app.get("/v1/chatgpt/models")
+def chatgpt_models() -> list[dict[str, str]]:
+    try:
+        return chatgpt_oauth.available_models()
+    except (chatgpt_oauth.OAuthError, keyring.errors.KeyringError):
+        raise HTTPException(status_code=503, detail="Modelli ChatGPT non disponibili")
 
 
 class ConversationCreate(BaseModel):
@@ -59,7 +121,7 @@ class AgentSettingsUpdate(BaseModel):
 
 class EndpointCreate(BaseModel):
     label: str = Field(min_length=1, max_length=100)
-    provider: Literal["openai", "anthropic", "ollama", "openai_compatible"]
+    provider: Literal["openai", "anthropic", "ollama", "openai_compatible", "chatgpt_plan"]
     model_name: str = Field(min_length=1, max_length=200)
     base_url: str | None = None
     api_key: SecretStr | None = None
@@ -208,6 +270,14 @@ def create_endpoint(payload: EndpointCreate) -> dict:
         raise HTTPException(status_code=422, detail="L'indirizzo OpenAI non è modificabile")
     if payload.provider == "anthropic" and payload.base_url:
         raise HTTPException(status_code=422, detail="L'indirizzo Claude non è modificabile")
+    if payload.provider == "chatgpt_plan" and payload.base_url:
+        raise HTTPException(status_code=422, detail="L'indirizzo ChatGPT non è modificabile")
+    if payload.provider == "chatgpt_plan":
+        try:
+            if model not in {item["slug"] for item in chatgpt_oauth.available_models()}:
+                raise HTTPException(status_code=422, detail="Modello ChatGPT non disponibile per l'account")
+        except (chatgpt_oauth.OAuthError, keyring.errors.KeyringError):
+            raise HTTPException(status_code=503, detail="Catalogo modelli ChatGPT non disponibile")
     try:
         if payload.provider == "ollama":
             base_url = validate_ollama_url(payload.base_url)

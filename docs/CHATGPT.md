@@ -1,14 +1,26 @@
 # Accesso con ChatGPT in Orbit Open
 
-Stato: **da implementare**. Il percorso open source usa la registrazione dinamica descritta da OpenAI; la pubblicazione del codice da sola non realizza il login né garantisce l'idoneità di ogni account.
+Stato: flusso open source implementato; 19 test Core superati, build Swift riuscita e pagina ufficiale di accesso OpenAI aperta. Consenso dell'utente e prima risposta reale ancora da verificare.
 
 ## Connessioni distinte
 
-1. **OpenAI API**: chiave API personale nel Portachiavi. È già disponibile e rimane indipendente.
-2. **ChatGPT con account**: login OAuth e consenso dell'utente per richieste idonee tramite il suo piano ChatGPT. Da sviluppare.
+1. **OpenAI API:** chiave API personale nel Portachiavi. Resta indipendente dall'accesso ChatGPT.
+2. **ChatGPT con account:** login OAuth, consenso per usare il piano idoneo, token nel Portachiavi. Modelli letti dal catalogo dell'account e aggiunti alle chat su scelta dell'utente.
 
-Per il primo accesso OpenAI documenta `client_id=dynamic_agent_client`, un ID stabile dell'host, callback locale su `127.0.0.1`, `state`, `nonce`, PKCE e verifica dell'ID token. Il client ID restituito va conservato per l'account e riutilizzato negli accessi successivi. I token vanno nel Portachiavi. Le autorizzazioni per usare il piano sono distinte dal login; un token d'identità non dà accesso alle risposte dei modelli.
+La schermata Impostazioni mostra due voci separate. Se l'utente non concede l'uso del piano, Orbit Open mostra l'account collegato ma non aggiunge modelli ChatGPT. Non passa automaticamente a OpenAI API in caso di limite o errore.
 
-La versione commerciale di Orbit segue il [percorso di richiesta per partner commerciali](https://developers.openai.com/siwc/request-client-id) e non deve riutilizzare la registrazione di Orbit Open.
+## Come funziona
 
-Fonti: [registrazione open source](https://developers.openai.com/siwc/token-sharing-open-source/sign-in), [quickstart](https://developers.openai.com/siwc/quickstart).
+- Al primo accesso il client usa `dynamic_agent_client`, un ID stabile del Mac, callback `127.0.0.1:8766/auth/callback`, `state`, `nonce` e PKCE. Il browser di sistema mostra il consenso OpenAI.
+- Il Core controlla `state`, client ID, firma dell'ID token, issuer, audience, scadenza e nonce prima di salvare l'account. Il client ID emesso viene riutilizzato per accessi successivi allo stesso account.
+- Access token, refresh token e ID token validato sono salvati nel Portachiavi. Il rinnovo sostituisce insieme access token e refresh token. La disconnessione tenta la revoca remota e rimuove i token locali, conservando l'associazione account/client per un nuovo login.
+- I modelli vengono letti da `/v1/models` usando il token OAuth. Le risposte ChatGPT usano la Responses API pubblica con `store=false` e `stream=true`; sono considerate complete solo dopo `response.completed`.
+- Il servizio locale disattiva il registro degli URL delle richieste per non scrivere nei log il codice temporaneo ricevuto dal browser nel callback.
+
+## Limiti attuali
+
+- È gestito un account ChatGPT alla volta. La scelta fra più account registrati va ancora sviluppata.
+- La prova reale fino alla prima risposta dipende dal consenso dell'utente nel browser e dall'idoneità del suo piano.
+- Il browser può rimanere sulla schermata di accesso mentre il Core viene aggiornato: evitare di riavviare il servizio durante un tentativo in corso, perché lo stato di quel tentativo è in memoria.
+
+Fonti: [registrazione e login open source](https://developers.openai.com/siwc/token-sharing-open-source/sign-in), [account e sessioni](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions), [modelli e inferenza](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference).

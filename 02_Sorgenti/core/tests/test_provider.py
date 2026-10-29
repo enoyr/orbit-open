@@ -41,6 +41,38 @@ def test_openai_adapter_streams_text_without_remote_storage(monkeypatch):
     assert captured["closed"] is True
 
 
+def test_chatgpt_plan_uses_oauth_token_and_requires_completed_event(monkeypatch):
+    captured = {}
+
+    class FakeStream:
+        def __iter__(self):
+            yield SimpleNamespace(type="response.output_text.delta", delta="Ciao")
+            yield SimpleNamespace(type="response.completed")
+
+        def close(self):
+            captured["closed"] = True
+
+    class FakeClient:
+        def __init__(self, api_key, base_url, max_retries):
+            captured.update(api_key=api_key, base_url=base_url, max_retries=max_retries)
+            self.responses = self
+
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return FakeStream()
+
+    monkeypatch.setattr(openai, "OpenAI", FakeClient)
+    monkeypatch.setattr("orbit_core.providers.chatgpt_oauth.access_token", lambda: "oauth-test")
+    endpoint = {"provider": "chatgpt_plan", "model_name": "allowed-model"}
+    assert "".join(stream_reply([{"role": "user", "content": "Ciao"}], endpoint)) == "Ciao"
+    assert captured["api_key"] == "oauth-test"
+    assert captured["base_url"] == "https://api.openai.com/v1"
+    assert captured["max_retries"] == 0
+    assert captured["store"] is False
+    assert captured["stream"] is True
+    assert captured["closed"] is True
+
+
 def test_ollama_adapter_streams_local_chat(monkeypatch):
     real_client = httpx.Client
 

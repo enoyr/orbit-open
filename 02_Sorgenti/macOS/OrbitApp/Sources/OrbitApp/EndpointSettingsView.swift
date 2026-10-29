@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct EndpointSettingsView: View {
     let client: OrbitClient
@@ -17,6 +18,10 @@ struct EndpointSettingsView: View {
     @State private var openAIKey = ""
     @State private var hasOpenAIKey = false
     @State private var hasClaudeKey = false
+    @State private var chatGPTAccount: ChatGPTAccountStatus?
+    @State private var chatGPTModels: [ChatGPTModel] = []
+    @State private var selectedChatGPTModel: String?
+    @State private var showChatGPTDisconnectConfirmation = false
     @State private var showDeleteKeyConfirmation = false
     @State private var keyMessage: String?
     @State private var connectionMessage: String?
@@ -50,6 +55,8 @@ struct EndpointSettingsView: View {
                             detailHeader(for: selectedProvider)
                             if selectedProvider == "agent" {
                                 agentDetailSection
+                            } else if selectedProvider == "chatgpt" {
+                                chatGPTDetailSection
                             } else if selectedProvider == "openai" || selectedProvider == "anthropic" {
                                 providerKeySection
                                 modelSection
@@ -74,13 +81,21 @@ struct EndpointSettingsView: View {
         .background { OrbitAtmosphere() }
         .navigationTitle(selectedProvider == nil ? "Impostazioni" :
                          selectedProvider == "agent" ? "Agente" :
+                         selectedProvider == "chatgpt" ? "ChatGPT" :
                          selectedProvider == "openai" ? "OpenAI API" :
                          selectedProvider == "anthropic" ? "Claude" : "Endpoint personalizzato")
         .onAppear { selectedProvider = nil }
         .task { await refreshKeyStatus() }
+        .task { await refreshChatGPT() }
         .task { await loadAgentSettings() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await refreshChatGPT() }
+        }
         .confirmationDialog("Rimuovere la chiave API dal Portachiavi?", isPresented: $showDeleteKeyConfirmation) {
             Button("Rimuovi chiave", role: .destructive) { deleteKey() }
+        }
+        .confirmationDialog("Scollegare ChatGPT da Orbit Open?", isPresented: $showChatGPTDisconnectConfirmation) {
+            Button("Scollega ChatGPT", role: .destructive) { disconnectChatGPT() }
         }
         .overlay {
             if let saveNotice {
@@ -106,6 +121,9 @@ struct EndpointSettingsView: View {
             Text("Connessioni").font(.title2)
             providerRow("OpenAI API", subtitle: hasOpenAIKey ? "Chiave API pronta" : "Serve una chiave API",
                         symbol: "cloud.fill", color: .black, value: "openai")
+            Divider()
+            providerRow("ChatGPT", subtitle: chatGPTAccount?.connected == true ? "Account collegato" : "Accedi con il tuo account",
+                        symbol: "person.crop.circle", color: OrbitPalette.actionBlue, value: "chatgpt")
             Divider()
             providerRow("Claude", subtitle: hasClaudeKey ? "Chiave API pronta" : "Serve una chiave API",
                         symbol: "sparkle", color: .orange, value: "anthropic")
@@ -160,6 +178,7 @@ struct EndpointSettingsView: View {
 
     private func detailHeader(for value: String) -> some View {
         let title = value == "agent" ? "Agente" :
+                    value == "chatgpt" ? "ChatGPT" :
                     value == "openai" ? "OpenAI API" :
                     value == "anthropic" ? "Claude" : "Endpoint personalizzato"
         return HStack(spacing: 16) {
@@ -180,7 +199,7 @@ struct EndpointSettingsView: View {
                 Image(nsImage: image)
                     .resizable()
                     .frame(width: size, height: size)
-            } else if value == "openai", let url = Bundle.main.url(forResource: "OpenAI", withExtension: "png"),
+            } else if (value == "openai" || value == "chatgpt"), let url = Bundle.main.url(forResource: "OpenAI", withExtension: "png"),
                let image = NSImage(contentsOf: url) {
                 Image(nsImage: image)
                     .resizable()
@@ -263,6 +282,122 @@ struct EndpointSettingsView: View {
                 .buttonStyle(.link)
             }
             if let keyMessage { Text(keyMessage).foregroundStyle(.secondary) }
+        }
+    }
+
+    private var chatGPTDetailSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Collega il tuo account ChatGPT a Orbit Open. La chiave OpenAI API resta una connessione separata.")
+                .foregroundStyle(.secondary)
+            if let account = chatGPTAccount, account.connected {
+                Label(account.email ?? "Account ChatGPT collegato", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                if account.planEnabled {
+                    Label("Uso del piano ChatGPT autorizzato", systemImage: "checkmark.shield.fill")
+                        .foregroundStyle(.secondary)
+                    if !chatGPTModels.isEmpty {
+                        OrbitSettingsField("Modello ChatGPT", help: "Sono mostrati solo i modelli disponibili per questo account.", surface: false) {
+                            Picker("Modello ChatGPT", selection: $selectedChatGPTModel) {
+                                ForEach(chatGPTModels) { model in
+                                    Text(model.displayName).tag(Optional(model.slug))
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                        }
+                        OrbitTextActionButton(title: "Aggiungi modello", symbol: "plus",
+                                              action: addChatGPTModel,
+                                              ready: selectedChatGPTModel != nil && !isSaving)
+                    } else {
+                        Text("Nessun modello disponibile. Riprova tra poco.").foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("L'account è collegato, ma l'uso del piano per le richieste IA non è autorizzato.")
+                        .foregroundStyle(.secondary)
+                    OrbitTextActionButton(title: "Autorizza il piano", symbol: "arrow.up.right",
+                                          action: beginChatGPTSignIn, ready: !isSaving)
+                }
+                Divider()
+                Button("Scollega ChatGPT", role: .destructive) {
+                    showChatGPTDisconnectConfirmation = true
+                }
+                .buttonStyle(.link)
+            } else {
+                OrbitTextActionButton(title: "Continua con ChatGPT", symbol: "arrow.up.right",
+                                      action: beginChatGPTSignIn, ready: !isSaving)
+            }
+        }
+    }
+
+    private func refreshChatGPT() async {
+        do {
+            let status = try await client.chatGPTStatus()
+            chatGPTAccount = status
+            if status.connected && status.planEnabled {
+                chatGPTModels = try await client.chatGPTModels()
+                if !chatGPTModels.contains(where: { $0.slug == selectedChatGPTModel }) {
+                    selectedChatGPTModel = chatGPTModels.first?.slug
+                }
+            } else {
+                chatGPTModels = []
+                selectedChatGPTModel = nil
+            }
+        } catch {
+            if selectedProvider == "chatgpt" { errorMessage = error.localizedDescription }
+        }
+    }
+
+    private func beginChatGPTSignIn() {
+        isSaving = true
+        Task {
+            defer { isSaving = false }
+            do {
+                let url = try await client.startChatGPTSignIn()
+                guard NSWorkspace.shared.open(url) else {
+                    errorMessage = "Impossibile aprire il browser per ChatGPT."
+                    return
+                }
+                errorMessage = nil
+                connectionMessage = "Completa l'accesso nel browser, poi torna in Orbit Open."
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func addChatGPTModel() {
+        guard let slug = selectedChatGPTModel,
+              let model = chatGPTModels.first(where: { $0.slug == slug }) else { return }
+        isSaving = true
+        Task {
+            defer { isSaving = false }
+            do {
+                let endpoint = try await client.createEndpoint(NewEndpoint(
+                    label: "ChatGPT · \(model.displayName)", provider: "chatgpt_plan",
+                    modelName: model.slug, baseURL: nil, apiKey: nil
+                ))
+                onCreated(endpoint)
+                errorMessage = nil
+                withAnimation(.easeOut(duration: 0.18)) {
+                    saveNotice = ("Modello ChatGPT aggiunto", "Puoi sceglierlo nelle chat.")
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func disconnectChatGPT() {
+        Task {
+            do {
+                let result = try await client.disconnectChatGPT()
+                await refreshChatGPT()
+                connectionMessage = result.remoteRevoked
+                    ? "ChatGPT scollegato. La sessione remota è stata revocata."
+                    : "ChatGPT scollegato sul Mac. Puoi verificare l'accesso remoto nelle impostazioni di ChatGPT."
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 

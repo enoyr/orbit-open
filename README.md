@@ -9,7 +9,7 @@ Orbit Open è un assistente personale per macOS in fase iniziale di sviluppo. Co
 - Chiavi API nel Portachiavi macOS; token locale per le richieste fra app e Core.
 - Dati e credenziali separati da Orbit Commercial: database `orbit_open`, porta `8766`, token in `Orbit Open` e voci dedicate nel Portachiavi.
 - Pagine Libreria e Attività ancora in preparazione.
-- L'accesso con account ChatGPT **non è ancora implementato**. L'integrazione open source è pianificata secondo la [documentazione OpenAI](https://developers.openai.com/siwc/token-sharing-open-source/sign-in). Non confondere questa modalità con OpenAI API, che continuerà a funzionare separatamente.
+- L'accesso con account ChatGPT usa il [percorso open source documentato da OpenAI](https://developers.openai.com/siwc/token-sharing-open-source/sign-in): registrazione dinamica, consenso nel browser, token nel Portachiavi e catalogo modelli dell'account. Il flusso è implementato e verificato con test locali; la prova con consenso e risposta reali è ancora in corso. OpenAI API continua a funzionare separatamente.
 
 ## Requisiti e avvio dello sviluppo
 
@@ -28,7 +28,7 @@ Il primo avvio usa la connessione demo locale, senza chiamate a modelli. Le conn
 - `02_Sorgenti/macOS/OrbitApp`: app SwiftUI, risorse e script di build.
 - `docs`: note tecniche pubbliche.
 
-Orbit Open è una build di sviluppo: non ha ancora installer, aggiornamenti automatici o integrazione ChatGPT tramite account. Il progetto commerciale non deve importare o riutilizzare token ottenuti tramite un'installazione open source.
+Orbit Open è una build di sviluppo: non ha ancora installer, aggiornamenti automatici o gestione di più account ChatGPT. Il progetto commerciale non deve importare o riutilizzare token ottenuti tramite un'installazione open source.
 
 ## Licenza e marchi
 

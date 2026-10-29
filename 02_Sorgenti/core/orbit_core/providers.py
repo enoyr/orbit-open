@@ -9,6 +9,8 @@ from ipaddress import ip_address
 import httpx
 import keyring
 
+from . import chatgpt_oauth
+
 
 class ProviderConfigurationError(Exception):
     pass
@@ -65,6 +67,11 @@ def validate_endpoint(endpoint: dict) -> None:
     provider = endpoint["provider"]
     if provider == "openai":
         _openai_api_key()
+    elif provider == "chatgpt_plan":
+        try:
+            chatgpt_oauth.access_token()
+        except chatgpt_oauth.OAuthError as exc:
+            raise ProviderConfigurationError(str(exc)) from exc
     elif provider == "anthropic":
         _anthropic_api_key()
     elif provider == "ollama":
@@ -96,6 +103,30 @@ def stream_reply(history: list[dict[str, str]], endpoint: dict) -> Iterator[str]
                     yield event.delta
                 elif event.type in {"response.failed", "error"}:
                     raise RuntimeError("Il provider ha interrotto la risposta")
+        finally:
+            stream.close()
+        return
+    if provider == "chatgpt_plan":
+        from openai import OpenAI
+
+        client = OpenAI(api_key=chatgpt_oauth.access_token(), base_url=chatgpt_oauth.RESOURCE,
+                        max_retries=0)
+        stream = client.responses.create(
+            model=endpoint["model_name"],
+            input=[{"role": item["role"], "content": item["content"]} for item in history],
+            stream=True, store=False,
+        )
+        completed = False
+        try:
+            for event in stream:
+                if event.type == "response.output_text.delta":
+                    yield event.delta
+                elif event.type == "response.completed":
+                    completed = True
+                elif event.type in {"response.failed", "response.incomplete", "error"}:
+                    raise RuntimeError("ChatGPT ha interrotto la risposta")
+            if not completed:
+                raise RuntimeError("Risposta ChatGPT incompleta")
         finally:
             stream.close()
         return

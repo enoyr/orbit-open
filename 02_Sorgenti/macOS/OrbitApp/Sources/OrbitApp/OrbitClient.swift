@@ -74,6 +74,38 @@ struct SecretStatus: Decodable {
     let configured: Bool
 }
 
+struct ChatGPTAccountStatus: Decodable {
+    let connected: Bool
+    let email: String?
+    let planEnabled: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case connected, email
+        case planEnabled = "plan_enabled"
+    }
+}
+
+struct ChatGPTModel: Decodable, Identifiable, Hashable {
+    let slug: String
+    let displayName: String
+    var id: String { slug }
+
+    enum CodingKeys: String, CodingKey {
+        case slug
+        case displayName = "display_name"
+    }
+}
+
+private struct ChatGPTStart: Decodable {
+    let authorizationURL: URL
+    enum CodingKeys: String, CodingKey { case authorizationURL = "authorization_url" }
+}
+
+struct ChatGPTDisconnect: Decodable {
+    let remoteRevoked: Bool
+    enum CodingKeys: String, CodingKey { case remoteRevoked = "remote_revoked" }
+}
+
 private struct OpenAIKeyRequest: Encodable {
     let key: String
 }
@@ -233,6 +265,38 @@ struct OrbitClient {
         let (data, response) = try await URLSession.shared.data(for: try authorizedRequest(url: url))
         try validate(response)
         return try JSONDecoder().decode(SecretStatus.self, from: data)
+    }
+
+    func chatGPTStatus() async throws -> ChatGPTAccountStatus {
+        let url = baseURL.appending(path: "v1/chatgpt/status")
+        let (data, response) = try await URLSession.shared.data(for: try authorizedRequest(url: url))
+        try validate(response)
+        return try JSONDecoder().decode(ChatGPTAccountStatus.self, from: data)
+    }
+
+    func startChatGPTSignIn() async throws -> URL {
+        let url = baseURL.appending(path: "v1/chatgpt/start")
+        var request = try authorizedRequest(url: url)
+        request.httpMethod = "POST"
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response)
+        return try JSONDecoder().decode(ChatGPTStart.self, from: data).authorizationURL
+    }
+
+    func chatGPTModels() async throws -> [ChatGPTModel] {
+        let url = baseURL.appending(path: "v1/chatgpt/models")
+        let (data, response) = try await URLSession.shared.data(for: try authorizedRequest(url: url))
+        try validate(response)
+        return try JSONDecoder().decode([ChatGPTModel].self, from: data)
+    }
+
+    func disconnectChatGPT() async throws -> ChatGPTDisconnect {
+        let url = baseURL.appending(path: "v1/chatgpt/account")
+        var request = try authorizedRequest(url: url)
+        request.httpMethod = "DELETE"
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response)
+        return try JSONDecoder().decode(ChatGPTDisconnect.self, from: data)
     }
 
     func saveOpenAIKey(_ key: String) async throws -> SecretStatus {
