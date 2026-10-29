@@ -27,6 +27,23 @@ struct OrbitMessageRow: View {
     }
 }
 
+struct OrbitResponseStatus: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 9) {
+            ProgressView()
+                .controlSize(.small)
+                .tint(OrbitPalette.blue)
+            Text(text)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.leading, 18)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct OrbitComposer: View {
     @Binding var text: String
     let isSending: Bool

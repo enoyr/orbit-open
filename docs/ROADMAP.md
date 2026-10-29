@@ -2,6 +2,8 @@
 
 Questa pagina raccoglie le funzioni concordate per l'edizione Open. Le nuove funzioni condivise si sviluppano qui; l'edizione commerciale potrà poi derivarle mantenendo credenziali e integrazioni separate.
 
+La chat mostra già quando Orbit prepara una risposta e quando la sta scrivendo progressivamente. Questi stati non espongono il ragionamento interno del modello; con i futuri strumenti verranno aggiunti stati specifici come lettura di un file o attesa di approvazione.
+
 ## Prossimi passi
 
 1. **Allegati e contenuti locali.** Aggiungere documenti e immagini alla chat, conservarli sul Mac e renderli disponibili ai modelli compatibili. Costruire la base della Libreria per ritrovarli.

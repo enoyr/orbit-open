@@ -4,7 +4,7 @@ Orbit Open è un assistente personale per macOS in fase iniziale di sviluppo. Co
 
 ## Stato attuale
 
-- Chat e cronologia locali, con risposta progressiva e selezione della connessione.
+- Chat e cronologia locali, con indicatore di preparazione, risposta progressiva, stato di scrittura e selezione della connessione.
 - Titolo ricavato dalla prima frase del primo messaggio, con rinomina ed eliminazione dal pulsante che compare passando sulla chat nella barra laterale. Markdown con codice e tabelle, icona per copiare sotto ogni messaggio, copia dei blocchi di codice e grafici a barre da blocchi `chart` JSON. La modalità di accesso scelta per ogni chat è conservata in PostgreSQL; gli strumenti per file e browser non sono ancora collegati.
 - Connessioni tramite chiave API OpenAI, chiave API Claude, endpoint personalizzato o Ollama locale.
 - Chiavi API nel Portachiavi macOS; token locale per le richieste fra app e Core.

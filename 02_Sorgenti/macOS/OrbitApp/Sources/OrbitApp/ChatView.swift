@@ -49,9 +49,15 @@ struct ChatView: View {
                         OrbitMessageRow(role: "user", content: pendingUserText,
                                         agentName: conversation.agentName)
                     }
-                    if isSending || !streamedText.isEmpty {
-                        OrbitMessageRow(role: "assistant", content: streamedText.isEmpty ? "…" : streamedText,
+                    if isSending && streamedText.isEmpty {
+                        OrbitResponseStatus(text: "Orbit sta preparando la risposta…")
+                    }
+                    if !streamedText.isEmpty {
+                        OrbitMessageRow(role: "assistant", content: streamedText,
                                         agentName: conversation.agentName)
+                        if isSending {
+                            OrbitResponseStatus(text: "Orbit sta scrivendo…")
+                        }
                     }
                 }
                 .frame(maxWidth: 760)
