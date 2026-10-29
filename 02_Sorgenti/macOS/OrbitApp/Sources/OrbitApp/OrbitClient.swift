@@ -5,6 +5,7 @@ struct Conversation: Decodable, Identifiable, Hashable {
     let title: String
     let endpointID: UUID
     let agentName: String
+    let accessMode: String
     let createdAt: Date
     let updatedAt: Date
 
@@ -12,6 +13,7 @@ struct Conversation: Decodable, Identifiable, Hashable {
         case id, title
         case endpointID = "endpoint_id"
         case agentName = "agent_name"
+        case accessMode = "access_mode"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -66,7 +68,16 @@ private struct EndpointSelection: Encodable {
     enum CodingKeys: String, CodingKey { case endpointID = "endpoint_id" }
 }
 
+private struct AccessModeSelection: Encodable {
+    let accessMode: String
+    enum CodingKeys: String, CodingKey { case accessMode = "access_mode" }
+}
+
 struct NewConversation: Encodable {
+    let title: String
+}
+
+private struct RenameConversation: Encodable {
     let title: String
 }
 
@@ -195,6 +206,17 @@ struct OrbitClient {
         try validate(response)
     }
 
+    func renameConversation(_ conversationID: UUID, to title: String) async throws -> Conversation {
+        let url = baseURL.appending(path: "v1/conversations/\(conversationID)")
+        var request = try authorizedRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(RenameConversation(title: title))
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response)
+        return try decoder.decode(Conversation.self, from: data)
+    }
+
     func capabilities() async throws -> Capabilities {
         let url = baseURL.appending(path: "v1/capabilities")
         let (data, response) = try await URLSession.shared.data(for: try authorizedRequest(url: url))
@@ -244,6 +266,17 @@ struct OrbitClient {
         request.httpMethod = "PATCH"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(EndpointSelection(endpointID: endpointID))
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response)
+        return try decoder.decode(Conversation.self, from: data)
+    }
+
+    func selectAccessMode(_ accessMode: String, for conversationID: UUID) async throws -> Conversation {
+        let url = baseURL.appending(path: "v1/conversations/\(conversationID)/access-mode")
+        var request = try authorizedRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(AccessModeSelection(accessMode: accessMode))
         let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response)
         return try decoder.decode(Conversation.self, from: data)

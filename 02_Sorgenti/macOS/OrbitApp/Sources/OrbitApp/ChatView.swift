@@ -5,6 +5,7 @@ struct ChatView: View {
     let client: OrbitClient
     let endpoints: [ModelEndpoint]
     let onSelectEndpoint: (UUID) -> Void
+    let onSelectAccessMode: (String) -> Void
 
     @State private var messages: [ChatMessage] = []
     @State private var draft = ""
@@ -16,14 +17,15 @@ struct ChatView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(conversation.title).font(.headline)
-                    Text(conversation.agentName).font(.caption).foregroundStyle(.secondary)
-                }
+                Text(conversation.title)
+                    .font(.system(size: 23, weight: .light))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
                 Spacer()
             }
             .padding(.horizontal, 28)
-            .padding(.vertical, 18)
+            .padding(.vertical, 16)
             Divider()
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
@@ -54,12 +56,15 @@ struct ChatView: View {
                 .frame(maxWidth: 760)
                 .frame(maxWidth: .infinity)
                 .padding(28)
+                .background(OrbitOverlayScrollStyle())
             }
             .defaultScrollAnchor(.bottom)
             OrbitComposer(text: $draft, isSending: isSending,
                           endpoints: endpoints, selectedEndpointID: conversation.endpointID,
+                          accessMode: conversation.accessMode,
                           focusID: conversation.id,
-                          onSelectEndpoint: onSelectEndpoint, onSend: send)
+                          onSelectEndpoint: onSelectEndpoint,
+                          onSelectAccessMode: onSelectAccessMode, onSend: send)
                 .frame(maxWidth: 820)
                 .padding(.horizontal, 28)
                 .padding(.vertical, 20)

@@ -75,6 +75,7 @@ struct EndpointSettingsView: View {
                     .frame(maxWidth: 650, alignment: .leading)
                     .padding(36)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(OrbitOverlayScrollStyle())
                 }
             }
         }

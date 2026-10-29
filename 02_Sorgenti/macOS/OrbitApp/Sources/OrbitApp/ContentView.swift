@@ -17,6 +17,8 @@ struct ContentView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var conversationToDelete: Conversation?
+    @State private var conversationToRename: Conversation?
+    @State private var renameDraft = ""
     @State private var sidebarVisible = true
     @State private var isCompact = false
 
@@ -91,6 +93,16 @@ struct ContentView: View {
         } message: {
             Text("La conversazione e i suoi messaggi verranno eliminati dal Mac.")
         }
+        .alert("Rinomina chat", isPresented: Binding(
+            get: { conversationToRename != nil },
+            set: { if !$0 { conversationToRename = nil } }
+        )) {
+            TextField("Nome della chat", text: $renameDraft)
+            Button("Salva") { renamePendingConversation() }
+            Button("Annulla", role: .cancel) { conversationToRename = nil }
+        } message: {
+            Text("Il nuovo nome comparirà nella barra laterale.")
+        }
     }
 
     private var sidebar: some View {
@@ -112,19 +124,35 @@ struct ContentView: View {
                                 .padding(.bottom, 4)
                         }
                         ForEach(conversations) { conversation in
-                            sidebarRow(conversation.title, symbol: "bubble.left",
-                                destination: .conversation(conversation.id))
-                                .contextMenu {
+                            HStack(spacing: 2) {
+                                sidebarRow(conversation.title, symbol: "bubble.left",
+                                    destination: .conversation(conversation.id))
+                                Menu {
+                                    Button("Rinomina", systemImage: "pencil") { beginRename(conversation) }
                                     Button("Elimina chat", systemImage: "trash", role: .destructive) {
                                         conversationToDelete = conversation
                                     }
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .frame(width: 26, height: 26)
                                 }
+                                .menuStyle(.borderlessButton)
+                                .accessibilityLabel("Opzioni per \(conversation.title)")
+                            }
+                            .contextMenu {
+                                Button("Rinomina", systemImage: "pencil") { beginRename(conversation) }
+                                Button("Elimina chat", systemImage: "trash", role: .destructive) {
+                                    conversationToDelete = conversation
+                                }
+                            }
                         }
                         Divider().padding(.vertical, 12)
                         sidebarRow("Impostazioni", symbol: "gearshape", destination: .settings)
                     }
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
+                    .background(OrbitOverlayScrollStyle())
                 }
             }
             .frame(width: 250)
@@ -146,7 +174,7 @@ struct ContentView: View {
     private var detailTitle: String {
         switch selection ?? .home {
         case .home: "Inizio"
-        case .conversation(let id): conversations.first(where: { $0.id == id })?.title ?? "Chat"
+        case .conversation: ""
         case .library: "Libreria"
         case .activity: "Attività"
         case .settings: "Impostazioni"
@@ -164,7 +192,8 @@ struct ContentView: View {
                     conversation: conversation,
                     client: client,
                     endpoints: endpoints,
-                    onSelectEndpoint: { endpointID in selectEndpoint(endpointID, for: id) }
+                    onSelectEndpoint: { endpointID in selectEndpoint(endpointID, for: id) },
+                    onSelectAccessMode: { mode in selectAccessMode(mode, for: id) }
                 )
             } else {
                 OrbitHomeView(onNewChat: createConversation)
@@ -212,6 +241,19 @@ struct ContentView: View {
         }
     }
 
+    private func selectAccessMode(_ mode: String, for conversationID: UUID) {
+        Task {
+            do {
+                let updated = try await client.selectAccessMode(mode, for: conversationID)
+                if let index = conversations.firstIndex(where: { $0.id == conversationID }) {
+                    conversations[index] = updated
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
     private func createConversation() {
         Task {
             isLoading = true
@@ -235,6 +277,28 @@ struct ContentView: View {
                 try await client.deleteConversation(conversation.id)
                 conversations.removeAll { $0.id == conversation.id }
                 if selection == .conversation(conversation.id) { selection = .home }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func beginRename(_ conversation: Conversation) {
+        renameDraft = conversation.title
+        conversationToRename = conversation
+    }
+
+    private func renamePendingConversation() {
+        guard let conversation = conversationToRename else { return }
+        let title = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        conversationToRename = nil
+        guard !title.isEmpty else { return }
+        Task {
+            do {
+                let updated = try await client.renameConversation(conversation.id, to: title)
+                if let index = conversations.firstIndex(where: { $0.id == conversation.id }) {
+                    conversations[index] = updated
+                }
             } catch {
                 errorMessage = error.localizedDescription
             }

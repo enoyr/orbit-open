@@ -1,6 +1,6 @@
 # Accesso con ChatGPT in Orbit Open
 
-Stato: flusso open source implementato; 19 test Core superati, build Swift riuscita e pagina ufficiale di accesso OpenAI aperta. Consenso dell'utente e prima risposta reale ancora da verificare.
+Stato: flusso open source implementato. Il consenso, il catalogo modelli e una risposta reale del modello sono stati verificati su un'installazione locale. 21 test Core superati e build Swift release riuscita.
 
 ## Connessioni distinte
 
@@ -20,7 +20,7 @@ La schermata Impostazioni mostra due voci separate. Se l'utente non concede l'us
 ## Limiti attuali
 
 - È gestito un account ChatGPT alla volta. La scelta fra più account registrati va ancora sviluppata.
-- La prova reale fino alla prima risposta dipende dal consenso dell'utente nel browser e dall'idoneità del suo piano.
+- Ogni nuova installazione richiede il consenso dell'utente nel browser e l'idoneità del suo piano.
 - Il browser può rimanere sulla schermata di accesso mentre il Core viene aggiornato: evitare di riavviare il servizio durante un tentativo in corso, perché lo stato di quel tentativo è in memoria.
 
 Fonti: [registrazione e login open source](https://developers.openai.com/siwc/token-sharing-open-source/sign-in), [account e sessioni](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions), [modelli e inferenza](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference).

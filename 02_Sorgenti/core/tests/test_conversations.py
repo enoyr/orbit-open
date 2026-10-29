@@ -36,7 +36,8 @@ def test_create_and_list_conversation():
                 conn.execute("DELETE FROM conversations WHERE id = %s", (created_id,))
 
 
-def test_delete_conversation_removes_messages():
+def test_delete_conversation_removes_messages(monkeypatch):
+    monkeypatch.setattr("orbit_core.main.stream_reply", lambda history, endpoint: iter(["Risposta di prova"]))
     client = authenticated_client()
     created = client.post("/v1/conversations", json={"title": "Da eliminare"})
     assert created.status_code == 201
@@ -60,8 +61,8 @@ def test_delete_conversation_removes_messages():
             conn.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
 
 
-def test_demo_stream_saves_both_messages(monkeypatch):
-    monkeypatch.setenv("ORBIT_PROVIDER", "demo")
+def test_stream_saves_both_messages(monkeypatch):
+    monkeypatch.setattr("orbit_core.main.stream_reply", lambda history, endpoint: iter(["Risposta di prova"]))
     client = authenticated_client()
     conversation_id = None
     try:
@@ -78,11 +79,49 @@ def test_demo_stream_saves_both_messages(monkeypatch):
         messages = client.get(f"/v1/conversations/{conversation_id}/messages").json()
         assert [item["role"] for item in messages] == ["user", "assistant"]
         assert messages[0]["content"] == "Ciao Orbit"
-        assert "Modalità demo locale" in messages[1]["content"]
+        assert messages[1]["content"] == "Risposta di prova"
     finally:
         if conversation_id:
             with psycopg.connect(os.environ["ORBIT_DATABASE_URL"]) as conn:
                 conn.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
+
+
+def test_rename_conversation_persists_and_rejects_blank_title():
+    client = authenticated_client()
+    created = client.post("/v1/conversations", json={"title": "Nuova chat"})
+    assert created.status_code == 201
+    conversation_id = created.json()["id"]
+    try:
+        renamed = client.patch(f"/v1/conversations/{conversation_id}", json={"title": "  Progetto Orbit  "})
+        assert renamed.status_code == 200
+        assert renamed.json()["title"] == "Progetto Orbit"
+        listed = client.get("/v1/conversations").json()
+        assert next(item for item in listed if item["id"] == conversation_id)["title"] == "Progetto Orbit"
+        assert client.patch(f"/v1/conversations/{conversation_id}", json={"title": "   "}).status_code == 422
+        assert client.patch(f"/v1/conversations/{uuid4()}", json={"title": "Sconosciuta"}).status_code == 404
+    finally:
+        with psycopg.connect(os.environ["ORBIT_DATABASE_URL"]) as conn:
+            conn.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
+
+
+def test_access_mode_is_saved_for_each_conversation():
+    client = authenticated_client()
+    created = client.post("/v1/conversations", json={"title": "Permessi"})
+    assert created.status_code == 201
+    conversation_id = created.json()["id"]
+    try:
+        assert created.json()["access_mode"] == "approval_required"
+        updated = client.patch(f"/v1/conversations/{conversation_id}/access-mode",
+                               json={"access_mode": "full_access"})
+        assert updated.status_code == 200
+        assert updated.json()["access_mode"] == "full_access"
+        listed = client.get("/v1/conversations").json()
+        assert next(item for item in listed if item["id"] == conversation_id)["access_mode"] == "full_access"
+        assert client.patch(f"/v1/conversations/{conversation_id}/access-mode",
+                            json={"access_mode": "anything"}).status_code == 422
+    finally:
+        with psycopg.connect(os.environ["ORBIT_DATABASE_URL"]) as conn:
+            conn.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
 
 
 def test_endpoint_is_selected_per_conversation():

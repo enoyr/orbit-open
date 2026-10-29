@@ -8,9 +8,13 @@ struct OrbitMessageRow: View {
     var body: some View {
         HStack(alignment: .top) {
             if role == "user" { Spacer(minLength: 70) }
-            Text(content)
-                .font(.body)
-                .textSelection(.enabled)
+            VStack(alignment: .leading, spacing: 9) {
+                OrbitMarkdownMessage(content: content)
+                HStack {
+                    OrbitCopyButton(text: content, label: "Copia messaggio")
+                    Spacer(minLength: 0)
+                }
+            }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 13)
                 .background(
@@ -29,8 +33,10 @@ struct OrbitComposer: View {
     let isSending: Bool
     let endpoints: [ModelEndpoint]
     let selectedEndpointID: UUID
+    let accessMode: String
     let focusID: UUID
     let onSelectEndpoint: (UUID) -> Void
+    let onSelectAccessMode: (String) -> Void
     let onSend: () -> Void
     @State private var pendingFeature: String?
     @State private var inputHeight: CGFloat = 52
@@ -57,9 +63,21 @@ struct OrbitComposer: View {
                         .frame(width: 28, height: 28)
                 }
                 .accessibilityLabel("Aggiungi allegato")
-                Text("Chat")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
+                Menu {
+                    Button("Richiedi approvazione", systemImage: accessMode == "approval_required" ? "checkmark" : "hand.raised") {
+                        onSelectAccessMode("approval_required")
+                    }
+                    Button("Accesso completo", systemImage: accessMode == "full_access" ? "checkmark" : "bolt") {
+                        onSelectAccessMode("full_access")
+                    }
+                } label: {
+                    Label(accessMode == "full_access" ? "Accesso completo" : "Richiedi approvazione",
+                          systemImage: accessMode == "full_access" ? "bolt" : "hand.raised")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .help("Preferenza per le future azioni su file e applicazioni")
                 Spacer(minLength: 8)
                 modelMenu
                 Button { pendingFeature = "Voce" } label: {

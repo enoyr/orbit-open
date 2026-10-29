@@ -98,11 +98,16 @@ class ConversationCreate(BaseModel):
     title: str = Field(default="Nuova chat", min_length=1, max_length=200)
 
 
+class ConversationRename(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
 class Conversation(BaseModel):
     id: UUID
     title: str
     endpoint_id: UUID
     agent_name: str
+    access_mode: Literal["approval_required", "full_access"]
     created_at: datetime
     updated_at: datetime
 
@@ -139,6 +144,10 @@ class Endpoint(BaseModel):
 
 class ConversationEndpointUpdate(BaseModel):
     endpoint_id: UUID
+
+
+class ConversationAccessModeUpdate(BaseModel):
+    access_mode: Literal["approval_required", "full_access"]
 
 
 class OpenAIKeyUpdate(BaseModel):
@@ -323,7 +332,7 @@ def list_conversations() -> list[dict]:
     try:
         with connection() as conn:
             return conn.execute(
-                "SELECT id, title, endpoint_id, agent_name, created_at, updated_at FROM conversations "
+                "SELECT id, title, endpoint_id, agent_name, access_mode, created_at, updated_at FROM conversations "
                 "ORDER BY updated_at DESC, id DESC"
             ).fetchall()
     except psycopg.Error:
@@ -341,11 +350,27 @@ def create_conversation(payload: ConversationCreate) -> dict:
                 "INSERT INTO conversations (id, title, endpoint_id, agent_name, agent_instructions) "
                 "SELECT %s, %s, default_endpoint_id, name, instructions "
                 "FROM agent_settings WHERE id = true "
-                "RETURNING id, title, endpoint_id, agent_name, created_at, updated_at",
+                "RETURNING id, title, endpoint_id, agent_name, access_mode, created_at, updated_at",
                 (uuid4(), title),
             ).fetchone()
     except psycopg.Error:
         raise HTTPException(status_code=503, detail="Database non disponibile")
+
+
+@app.patch("/v1/conversations/{conversation_id}", response_model=Conversation)
+def rename_conversation(conversation_id: UUID, payload: ConversationRename) -> dict:
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="Il titolo non può essere vuoto")
+    with connection() as conn:
+        updated = conn.execute(
+            "UPDATE conversations SET title = %s, updated_at = now() WHERE id = %s "
+            "RETURNING id, title, endpoint_id, agent_name, access_mode, created_at, updated_at",
+            (title, conversation_id),
+        ).fetchone()
+        if not updated:
+            raise HTTPException(status_code=404, detail="Chat non trovata")
+        return updated
 
 
 @app.delete("/v1/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -372,8 +397,21 @@ def set_conversation_endpoint(conversation_id: UUID, payload: ConversationEndpoi
             raise HTTPException(status_code=404, detail="Endpoint non trovato")
         updated = conn.execute(
             "UPDATE conversations SET endpoint_id = %s, updated_at = now() WHERE id = %s "
-            "RETURNING id, title, endpoint_id, agent_name, created_at, updated_at",
+            "RETURNING id, title, endpoint_id, agent_name, access_mode, created_at, updated_at",
             (payload.endpoint_id, conversation_id),
+        ).fetchone()
+        if not updated:
+            raise HTTPException(status_code=404, detail="Chat non trovata")
+        return updated
+
+
+@app.patch("/v1/conversations/{conversation_id}/access-mode", response_model=Conversation)
+def set_conversation_access_mode(conversation_id: UUID, payload: ConversationAccessModeUpdate) -> dict:
+    with connection() as conn:
+        updated = conn.execute(
+            "UPDATE conversations SET access_mode = %s, updated_at = now() WHERE id = %s "
+            "RETURNING id, title, endpoint_id, agent_name, access_mode, created_at, updated_at",
+            (payload.access_mode, conversation_id),
         ).fetchone()
         if not updated:
             raise HTTPException(status_code=404, detail="Chat non trovata")
@@ -428,6 +466,13 @@ def send_message(conversation_id: UUID, payload: MessageCreate) -> StreamingResp
             ).fetchall()
             if endpoint["agent_instructions"]:
                 history.insert(0, {"role": "system", "content": endpoint["agent_instructions"]})
+            history.insert(1 if endpoint["agent_instructions"] else 0, {
+                "role": "system",
+                "content": "Orbit mostra Markdown, tabelle e blocchi di codice. "
+                           "Solo quando l'utente chiede un grafico a barre, puoi usare un blocco "
+                           "```chart con JSON: {\"title\":\"Titolo\",\"data\":[{\"label\":\"A\",\"value\":12}]}. "
+                           "Usa numeri reali e non inventare dati.",
+            })
     except ProviderConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except psycopg.Error:
