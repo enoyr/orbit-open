@@ -29,6 +29,8 @@ Il primo avvio usa la connessione demo locale, senza chiamate a modelli. Le conn
 - `02_Sorgenti/macOS/OrbitApp`: app SwiftUI, risorse e script di build.
 - `docs`: note tecniche pubbliche.
 
+Le funzioni concordate per i prossimi sviluppi, comprese voce, immagini e video, sono raccolte nella [roadmap](docs/ROADMAP.md).
+
 Orbit Open è la base di sviluppo delle funzioni comuni. L'edizione commerciale sarà derivata mantenendo soltanto integrazioni e configurazioni private in un livello separato. Non deve importare o riutilizzare il client ID o i token ottenuti tramite un'installazione open source. La build di sviluppo non ha ancora installer, aggiornamenti automatici o gestione di più account ChatGPT.
 
 ## Licenza e marchi
