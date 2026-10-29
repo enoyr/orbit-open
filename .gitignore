@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.venv/
+.build/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.log
+*.sqlite*
+*.db
+*.pem
+*.p12
+*.pfx
+*.key
+04_Lavorazione/
